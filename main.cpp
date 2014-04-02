@@ -1,8 +1,16 @@
-#include <iostream>
+#include "gui_main_window.h"
+#include "qt_utils/exception_handling_application.h"
 
-using namespace std;
-
-int main()
+int main(int argc, char *argv[])
 {
-    cout << "Hello world!" << endl;
+    qu::ExceptionHandlingApplication a(argc, argv);
+    // Set up global organization name and application name, so
+    // the default constructor of QSettings will use these
+    // consistently throughout the application.
+    QCoreApplication::setOrganizationName("Ralph Tandetzky");
+    QCoreApplication::setApplicationName("IMF Decomposition Batch Processing");
+    gui::MainWindow w;
+    w.show();
+
+    return a.exec();
 }

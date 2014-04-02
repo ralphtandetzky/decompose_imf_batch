@@ -1,4 +1,4 @@
-QT       -= core gui
+QT += core gui
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 QMAKE_CXXFLAGS += -std=c++11 -pedantic
 
@@ -9,11 +9,14 @@ DEPENDPATH += .
 INCLUDEPATH += ..
 
 HEADERS  += \
+    gui_main_window.h
 
 SOURCES += \
 	main.cpp \
+    gui_main_window.cpp
 
 FORMS    += \
+    gui_main_window.ui
 
 LIBS += \
 	-L../qt_utils -lqt_utils \
