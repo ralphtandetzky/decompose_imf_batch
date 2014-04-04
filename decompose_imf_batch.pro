@@ -9,11 +9,13 @@ DEPENDPATH += .
 INCLUDEPATH += ..
 
 HEADERS  += \
-    gui_main_window.h
+    gui_main_window.h \
+    parse_batch.h
 
 SOURCES += \
 	main.cpp \
-    gui_main_window.cpp
+    gui_main_window.cpp \
+    parse_batch.cpp
 
 FORMS    += \
     gui_main_window.ui
