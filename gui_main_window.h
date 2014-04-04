@@ -1,26 +1,26 @@
-#ifndef GUI_GUI_MAIN_WINDOW_H
-#define GUI_GUI_MAIN_WINDOW_H
+/** @file
+  @author Ralph Tandetzky
+  @date 2 Apr 2014
+*/
 
+#pragma once
 #include <QMainWindow>
+#include <memory>
 
 namespace gui {
-
-namespace Ui {
-class MainWindow;
-}
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
     
 public:
-    explicit MainWindow(QWidget *parent = 0);
+    explicit MainWindow(QWidget * parent = nullptr);
     ~MainWindow();
     
 private:
-    Ui::MainWindow *ui;
+    struct Impl;
+    std::unique_ptr<Impl> m;
 };
 
 
 } // namespace gui
-#endif // GUI_GUI_MAIN_WINDOW_H

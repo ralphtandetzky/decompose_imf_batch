@@ -1,18 +1,23 @@
 #include "gui_main_window.h"
 #include "ui_gui_main_window.h"
+#include "../cpp_utils/std_make_unique.h"
 
 namespace gui {
 
-MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+struct MainWindow::Impl
 {
-    ui->setupUi(this);
+    Ui::MainWindow ui;
+};
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow{parent}
+    , m{ std::make_unique<Impl>() }
+{
+    m->ui.setupUi(this);
 }
 
 MainWindow::~MainWindow()
 {
-    delete ui;
 }
 
 } // namespace gui
