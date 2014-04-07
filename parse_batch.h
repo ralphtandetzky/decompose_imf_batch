@@ -12,7 +12,6 @@
 namespace dimf { struct OptimizationParams; }
 
 /*
-load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec1.asc
 seti swarmSize 200
 setf angleDevDegs 120
 setf amplitudeDev 0.5
@@ -28,6 +27,39 @@ add_preprocessing_step low_pass 2
 add_preprocessing_step clip 512 768
 add_preprocessing_step mul 0.02
 add_interprocessing_step zero_moments 2
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec1.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec2.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec3.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec4.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec5.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec6.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec7.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec8.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec9.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec10.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec11.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec12.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec13.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec14.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec15.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec16.asc
+new_task
+load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec17.asc
 new_task
  */
 
