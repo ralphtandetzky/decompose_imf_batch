@@ -17,9 +17,9 @@ struct MainWindow::Impl
     void updateState()
     {
         ui.runNextOptimizationPushButton->setEnabled( !optParams.empty() );
-/*        ui.statusBar->showMessage(
+        ui.statusbar->showMessage(
                     QString("%1 optimization runs left.")
-                    .arg(optParams.size()) );*/
+                    .arg(optParams.size()) );
     }
 };
 
