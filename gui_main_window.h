@@ -17,10 +17,13 @@ public:
     explicit MainWindow(QWidget * parent = nullptr);
     ~MainWindow();
     
+private slots:
+    void parse();
+    void runNextOptimization();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> m;
 };
-
 
 } // namespace gui

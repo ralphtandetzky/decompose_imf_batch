@@ -1,10 +1,12 @@
 #include "parse_batch.h"
+#include "../decompose_imf_lib/calculations.h"
 #include "../decompose_imf_lib/file_io.h"
 #include "../decompose_imf_lib/optimization_task.h"
 #include "../cpp_utils/exception.h"
 #include "../cpp_utils/extract_by_line.h"
 
 #include <cassert>
+#include <iostream>
 
 
 template <typename T>
@@ -63,44 +65,104 @@ static void loadSamplesFromFile( dimf::OptimizationParams & params, std::string 
 }
 
 
+static void addProcessingStep( std::string & processing, std::istream & is )
+{
+    auto preprocessingStep = std::string{};
+    std::getline( is, preprocessingStep );
+    CU_ASSERT_THROW( is.eof(), "The stream should only contain one line, but contains more." );
+    processing.append( std::move(preprocessingStep) );
+    processing.push_back( '\n' );
+}
+
+
+static void addPreprocessingStep( dimf::OptimizationParams & params, std::istream & is )
+{
+    addProcessingStep( params.preprocessing, is );
+}
+
+
+static void addInterprocessingStep( dimf::OptimizationParams & params, std::istream & is )
+{
+    addProcessingStep( params.interprocessing, is );
+}
+
+
+static bool runLine( dimf::OptimizationParams & params, const std::string & line )
+{
+    std::istringstream lineStream{line};
+    auto command = std::string{};
+    lineStream >> command;
+    if ( command == "setf" )
+    {
+        setFloatVar( params, lineStream );
+        return false;
+    }
+    if ( command == "seti" )
+    {
+        setIntegerVar( params, lineStream );
+        return false;
+    }
+    if ( command == "new_task" )
+    {
+        return true;
+    }
+    if ( command == "load_samples" )
+    {
+        auto fileName = std::string{};
+        lineStream >> fileName;
+        loadSamplesFromFile( params, fileName );
+        return false;
+    }
+    if ( command == "add_preprocessing_step" )
+    {
+        addPreprocessingStep( params, lineStream );
+        return false;
+    }
+    if ( command == "add_interprocessing_step" )
+    {
+        addInterprocessingStep( params, lineStream );
+        return false;
+    }
+    if ( command == "" ) // line is empty.
+    {
+        assert( lineStream.eof() );
+        return false;
+    }
+
+    CU_THROW( "Unknown command '" + command + "'." );
+    return false; // this line is never reached.
+}
+
+
 std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
 {
     auto result = std::vector<dimf::OptimizationParams>{};
     auto params = dimf::OptimizationParams{};
+    params.initializer = &dimf::getInitialApproximationByInterpolatingZeros;
+    params.receiveBestFit = [](
+            const std::vector<double> & //bestParams
+            , double cost
+            , size_t //nSamples
+            , size_t nIter
+            , const std::vector<double> & //f
+            )
+    {
+        std::cout << nIter << ' ' << cost << std::endl;
+    };
     const auto lines = cu::extractByLine( is );
     for ( auto lineNumber = size_t{}; lineNumber < lines.size(); ++lineNumber )
     {
-        const auto & line = lines[lineNumber];
-        std::istringstream lineStream{line};
-        auto command = std::string{};
-        lineStream >> command;
-        if ( command == "setf" )
+        try
         {
-            setFloatVar( params, lineStream );
+            if ( runLine( params, lines[lineNumber] ) )
+                result.push_back( params );
         }
-        else if ( command == "seti" )
+        catch (...)
         {
-            setIntegerVar( params, lineStream );
-        }
-        else if ( command == "new_task" )
-        {
-            result.push_back( params );
-        }
-        else if ( command == "load_samples" )
-        {
-            auto fileName = std::string{};
-            lineStream >> fileName;
-            loadSamplesFromFile( params, fileName );
-        }
-        else if ( command == "" ) // line is empty.
-        {
-            assert( lineStream.eof() );
-            continue; // skip line
-        }
-        else
-        {
-            CU_THROW( "Unknown command '" + command + "' in line " +
-                      std::to_string(lineNumber) + "." );
+            CU_THROW( "Could evaluate line " +
+                      std::to_string(lineNumber+1) +
+                      ". The content of the line is '" +
+                      lines[lineNumber] + "'." );
         }
     }
     return result;

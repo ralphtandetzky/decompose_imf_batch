@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>580</width>
+    <height>465</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,7 +16,38 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QPlainTextEdit" name="plainTextEdit"/>
+     <widget class="QPlainTextEdit" name="textEditor"/>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="runNextOptimizationPushButton">
+        <property name="text">
+         <string>Run Next Optimization</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="parsePushButton">
+        <property name="text">
+         <string>Parse</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>
@@ -25,7 +56,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>580</width>
      <height>25</height>
     </rect>
    </property>
@@ -33,5 +64,42 @@
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>parsePushButton</sender>
+   <signal>clicked()</signal>
+   <receiver>gui::MainWindow</receiver>
+   <slot>parse()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>532</x>
+     <y>414</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>535</x>
+     <y>402</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>runNextOptimizationPushButton</sender>
+   <signal>clicked()</signal>
+   <receiver>gui::MainWindow</receiver>
+   <slot>runNextOptimization()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>375</x>
+     <y>416</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>383</x>
+     <y>402</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+ <slots>
+  <slot>parse()</slot>
+  <slot>runNextOptimization()</slot>
+ </slots>
 </ui>
