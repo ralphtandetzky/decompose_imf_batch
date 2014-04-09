@@ -3,8 +3,12 @@
 #include "parse_batch.h"
 #include "../decompose_imf_lib/optimization_task.h"
 #include "../cpp_utils/std_make_unique.h"
+#include "../cpp_utils/exception_handling.h"
 
 #include <list>
+#include <QSettings>
+
+static const char * tasksTextName = "tasksText";
 
 namespace gui {
 
@@ -28,11 +32,19 @@ MainWindow::MainWindow(QWidget *parent)
     , m{ std::make_unique<Impl>() }
 {
     m->ui.setupUi(this);
+    m->ui.textEditor->setPlainText(
+                QSettings().value( tasksTextName ).toString() );
     m->updateState();
 }
 
 MainWindow::~MainWindow()
 {
+    CU_SWALLOW_ALL_EXCEPTIONS_FROM
+    {
+        QSettings().setValue(
+                    tasksTextName,
+                    m->ui.textEditor->toPlainText() );
+    };
 }
 
 void MainWindow::parse()
