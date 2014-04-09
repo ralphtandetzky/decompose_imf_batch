@@ -2,6 +2,7 @@
 #include "ui_gui_main_window.h"
 #include "parse_batch.h"
 #include "../decompose_imf_lib/optimization_task.h"
+#include "../qt_utils/invoke_in_thread.h"
 #include "../cpp_utils/std_make_unique.h"
 #include "../cpp_utils/exception_handling.h"
 
@@ -14,7 +15,7 @@ namespace gui {
 
 struct MainWindow::Impl
 {
-    std::list<dimf::OptimizationParams> optParams;
+    std::list<BatchOptimizationParams> optParams;
     Ui::MainWindow ui;
     dimf::OptimizationTask optTask;
 
@@ -60,7 +61,20 @@ void MainWindow::parse()
 
 void MainWindow::runNextOptimization()
 {
-    m->optTask.restart( m->optParams.front() );
+    if ( m->optParams.empty() )
+        return;
+
+    auto & nextOptimization = m->optParams.front();
+    const auto stepLimit = nextOptimization.stepLimit;
+    nextOptimization.shallCancel =
+            [this,stepLimit]( size_t nIter )
+    {
+        if ( nIter >= stepLimit )
+            return true;
+        qu::invokeInGuiThread( [this](){ runNextOptimization(); } );
+        return false;
+    };
+    m->optTask.restart( nextOptimization );
     m->optParams.pop_front();
     m->updateState();
 }
