@@ -6,56 +6,9 @@
 #include "../cpp_utils/extract_by_line.h"
 
 #include <cassert>
+#include <functional>
 #include <iostream>
-
-
-template <typename T>
-std::pair<std::string,T> readKeyAndValue( std::istream & is )
-{
-    auto varName = std::string{};
-    is >> varName;
-    if ( varName.empty() )
-        CU_THROW( "No variable name specified." );
-    auto value = T{};
-    is >> value;
-    if ( is.fail() || is.bad() )
-        CU_THROW( "The variable value could not be read." );
-    is >> std::ws;
-    if ( !is.eof() )
-        CU_THROW( "I could successfully parse the variable name and "
-                  "the value, but I don't know what to do with the rest "
-                  "of the line." );
-    return std::make_pair( std::move(varName), std::move(value) );
-}
-
-
-static void setFloatVar( dimf::OptimizationParams & params, std::istream & is )
-{
-    const auto keyAndValue = readKeyAndValue<double>( is );
-    const auto & varName = keyAndValue.first;
-    const auto & value   = keyAndValue.second;
-    if      ( varName == "angleDevDegs"   ) { params.angleDevDegs   = value; }
-    else if ( varName == "amplitudeDev"   ) { params.amplitudeDev   = value; }
-    else if ( varName == "crossOverProb"  ) { params.crossOverProb  = value; }
-    else if ( varName == "diffWeight"     ) { params.diffWeight     = value; }
-    else if ( varName == "initSigmaUnits" ) { params.initSigmaUnits = value; }
-    else if ( varName == "initTauUnits"   ) { params.initTauUnits   = value; }
-    else if ( varName == "nodeDevUnits"   ) { params.nodeDevUnits   = value; }
-    else if ( varName == "sigmaDevUnits"  ) { params.sigmaDevUnits  = value; }
-    else if ( varName == "tauDevUnits"    ) { params.tauDevUnits    = value; }
-    else CU_THROW( "Unknown variable name '" + varName + "'." );
-}
-
-
-static void setIntegerVar( dimf::OptimizationParams & params, std::istream & is )
-{
-    const auto keyAndValue = readKeyAndValue<size_t>( is );
-    const auto & varName = keyAndValue.first;
-    const auto & value   = keyAndValue.second;
-    if      ( varName == "swarmSize" ) { params.swarmSize = value; }
-    else if ( varName == "nParams"   ) { params.nParams   = value; }
-    else CU_THROW( "Unknown variable name '" + varName + "'." );
-}
+#include <map>
 
 
 static void loadSamplesFromFile( dimf::OptimizationParams & params, std::string & fileName )
@@ -86,20 +39,106 @@ static void addInterprocessingStep( dimf::OptimizationParams & params, std::istr
     addProcessingStep( params.interprocessing, is );
 }
 
+namespace {
 
-static bool runLine( dimf::OptimizationParams & params, const std::string & line )
+    using ValueReadersType =
+        std::map<std::string,std::function<void(std::istream&)> >;
+
+    class ValueReaderMaker
+    {
+    public:
+        ValueReaderMaker( ValueReadersType & valueReaders )
+            : valueReaders(valueReaders)
+        {
+        }
+
+        template <typename  T>
+        void operator()( T & x, const char * varName ) const
+        {
+            Impl<T,std::is_arithmetic<T>::value >()( x, varName, valueReaders );
+        }
+
+    private:
+        template <typename T, bool IsArithmetic> struct Impl;
+        template <typename T> struct Impl<T,false>
+        {
+            void operator()( T &, const char *, ValueReadersType & ) const
+            {
+                // NOOP //
+            }
+        };
+        template <typename T> struct Impl<T,true>
+        {
+            void operator()( T & x, const char * varName
+                             , ValueReadersType & valueReaders ) const
+            {
+                valueReaders.insert(
+                    std::make_pair(varName,
+                    [&x](std::istream & is)
+                {
+                    auto value = T{};
+                    is >> value;
+                    if ( is.fail() || is.bad() )
+                        CU_THROW( "The variable value could not be read." );
+                    is >> std::ws;
+                    if ( !is.eof() )
+                        CU_THROW( "I could successfully parse the variable "
+                                  "name and the value, but I don't know "
+                                  "what to do with the rest of the line." );
+                    x = value;
+                }) );
+            }
+        };
+        ValueReadersType & valueReaders;
+    };
+
+    std::map<std::string,std::function<void(std::istream&)> > makeValueReaders(
+            dimf::OptimizationParams & params )
+    {
+        ValueReadersType valueReaders;
+        dimf::iterateMembers( params, ValueReaderMaker(valueReaders) );
+        const auto nErasedItems = valueReaders.erase( "xIntervalWidth" );
+        assert( nErasedItems == 1 );
+        return valueReaders;
+    }
+
+    class ParamParser
+    {
+    public:
+        ParamParser( dimf::OptimizationParams & params )
+            : valueReaders(makeValueReaders(params))
+        {
+        }
+
+        void setParam( std::istream & is ) const
+        {
+            auto varName = std::string{};
+            is >> varName;
+            if ( varName.empty() )
+                CU_THROW( "No variable name specified." );
+            if ( valueReaders.count(varName) == 0 )
+                CU_THROW( "Unknown variable name '" + varName + "'." );
+            valueReaders.at(varName)( is );
+        }
+
+    private:
+        ValueReadersType valueReaders;
+    };
+
+} // unnamed namespace
+
+static bool runLine(
+        dimf::OptimizationParams & params,
+        const std::string & line,
+        const ParamParser & paramParser
+        )
 {
     std::istringstream lineStream{line};
     auto command = std::string{};
     lineStream >> command;
-    if ( command == "setf" )
+    if ( command == "set" )
     {
-        setFloatVar( params, lineStream );
-        return false;
-    }
-    if ( command == "seti" )
-    {
-        setIntegerVar( params, lineStream );
+        paramParser.setParam( lineStream );
         return false;
     }
     if ( command == "new_task" )
@@ -138,6 +177,7 @@ std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
 {
     auto result = std::vector<dimf::OptimizationParams>{};
     auto params = dimf::OptimizationParams{};
+    const auto paramParser = ParamParser{params};
     params.initializer = &dimf::getInitialApproximationByInterpolatingZeros;
     params.receiveBestFit = [](
             const std::vector<double> & //bestParams
@@ -154,7 +194,7 @@ std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
     {
         try
         {
-            if ( runLine( params, lines[lineNumber] ) )
+            if ( runLine( params, lines[lineNumber], paramParser ) )
                 result.push_back( params );
         }
         catch (...)
