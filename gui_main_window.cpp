@@ -3,11 +3,13 @@
 #include "parse_batch.h"
 #include "../decompose_imf_lib/optimization_task.h"
 #include "../qt_utils/invoke_in_thread.h"
+#include "../qt_utils/loop_thread.h"
 #include "../cpp_utils/std_make_unique.h"
 #include "../cpp_utils/exception_handling.h"
 
 #include <list>
 #include <QSettings>
+#include <iostream>
 
 static const char * tasksTextName = "tasksText";
 
@@ -17,7 +19,8 @@ struct MainWindow::Impl
 {
     std::list<BatchOptimizationParams> optParams;
     Ui::MainWindow ui;
-    dimf::OptimizationTask optTask;
+//    dimf::OptimizationTask optTask;
+    qu::LoopThread optimizationWorker;
 
     void updateState()
     {
@@ -64,19 +67,39 @@ void MainWindow::runNextOptimization()
     if ( m->optParams.empty() )
         return;
 
-    auto & nextOptimization = m->optParams.front();
-    const auto stepLimit = nextOptimization.stepLimit;
-    nextOptimization.shallCancel =
-            [this,stepLimit]( size_t nIter )
+    const auto optParams = m->optParams;
+    qu::invokeInThread( &m->optimizationWorker,
+                        [this,optParams]() mutable
     {
-        if ( nIter >= stepLimit )
-            return true;
-        qu::invokeInGuiThread( [this](){ runNextOptimization(); } );
-        return false;
-    };
-    m->optTask.restart( nextOptimization );
-    m->optParams.pop_front();
-    m->updateState();
+        auto i = size_t{};
+        for ( auto optParam : optParams )
+        {
+            ++i;
+            const auto n = optParams.size();
+            qu::invokeInGuiThread( [this,i,n]()
+            {
+                m->ui.statusbar->showMessage(
+                            QString("Optimization %1 of %2 is running ...")
+                            .arg(i)
+                            .arg(n) );
+            } );
+            const auto stepLimit = optParam.stepLimit;
+            optParam.howToContinue =
+                    [this,stepLimit]( size_t nIter )
+            {
+                if ( nIter >= stepLimit )
+                    return dimf::ContinueOption::Cancel;
+                return dimf::ContinueOption::Continue;
+            };
+            dimf::runOptimization(optParam);
+        }
+        qu::invokeInGuiThread( [this]()
+        {
+            m->ui.statusbar->showMessage(
+                QString("All optimization runs finished successfully.")
+                , 5000 );
+        } );
+    } );
 }
 
 } // namespace gui

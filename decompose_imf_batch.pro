@@ -22,6 +22,6 @@ FORMS    += \
 LIBS += \
 	-L../qt_utils -lqt_utils \
 	-L../decompose_imf_lib -ldecompose_imf_lib \
-#	-L/usr/lib/ -lopencv_core -lopencv_imgproc -lopencv_highgui \
-#	-L../cpp_utils -lcpp_utils \
+        -L../cpp_utils -lcpp_utils \
+        -L/usr/lib/ -lopencv_core -lopencv_imgproc -lopencv_highgui \
 
