@@ -65,12 +65,13 @@ void MainWindow::runBatch()
 {
     const auto optParams = parseBatch( std::istringstream(
         m->ui.textEditor->toPlainText().toStdString()) );
+    m->shared( [this]( Impl::SharedData & shared )
+    {
+        if ( shared.isRunning )
+            CU_THROW( "Batch processing is already in progress." );
+    });
     qu::invokeInThread( &m->optimizationWorker, [=]()
     { QU_HANDLE_ALL_EXCEPTIONS_FROM {
-        qu    ::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(true); } );
-        CU_SCOPE_EXIT {
-            qu::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(false); } );
-        };
         m->shared( [this]( Impl::SharedData & shared )
         {
             shared.cancelled = false;
@@ -79,6 +80,10 @@ void MainWindow::runBatch()
         CU_SCOPE_EXIT {
             m->shared( [this]( Impl::SharedData & shared )
             { shared.isRunning = false; });
+        };
+        qu    ::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(true); } );
+        CU_SCOPE_EXIT {
+            qu::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(false); } );
         };
         auto i = size_t{};
         for ( auto optParam : optParams )
