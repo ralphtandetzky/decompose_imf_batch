@@ -4,40 +4,13 @@
 #include "../decompose_imf_lib/optimization_task.h"
 #include "../cpp_utils/exception.h"
 #include "../cpp_utils/extract_by_line.h"
+#include "../cpp_utils/more_algorithms.h"
 
 #include <cassert>
 #include <functional>
 #include <iostream>
 #include <map>
 
-
-static void loadSamplesFromFile( dimf::OptimizationParams & params, std::string & fileName )
-{
-    params.samples = dimf::readSamplesFromFile( fileName );
-    params.xIntervalWidth = params.samples.size();
-}
-
-
-static void addProcessingStep( std::string & processing, std::istream & is )
-{
-    auto preprocessingStep = std::string{};
-    std::getline( is, preprocessingStep );
-    CU_ASSERT_THROW( is.eof(), "The stream should only contain one line, but contains more." );
-    processing.append( std::move(preprocessingStep) );
-    processing.push_back( '\n' );
-}
-
-
-static void addPreprocessingStep( dimf::OptimizationParams & params, std::istream & is )
-{
-    addProcessingStep( params.preprocessing, is );
-}
-
-
-static void addInterprocessingStep( dimf::OptimizationParams & params, std::istream & is )
-{
-    addProcessingStep( params.interprocessing, is );
-}
 
 namespace {
 
@@ -71,8 +44,9 @@ namespace {
         {
             void operator()( T & x, const char * varName
                              , ValueReadersType & valueReaders ) const
+            try
             {
-                valueReaders.insert(
+                const auto success = valueReaders.insert(
                     std::make_pair(varName,
                     [&x](std::istream & is)
                 {
@@ -86,17 +60,24 @@ namespace {
                                   "name and the value, but I don't know "
                                   "what to do with the rest of the line." );
                     x = value;
-                }) );
+                }) ).second;
+                CU_ASSERT_THROW( success,
+                                 "The variable name already exists." );
+            }
+            catch (...)
+            {
+                CU_THROW( std::string("The variable name '") + varName +
+                          "' could not be inserted into the list of "
+                          "valid variable names." );
             }
         };
         ValueReadersType & valueReaders;
     };
 
-    std::map<std::string,std::function<void(std::istream&)> > makeValueReaders(
-            dimf::OptimizationParams & params )
+    ValueReadersType makeValueReaders( BatchOptimizationParams & params )
     {
         ValueReadersType valueReaders;
-        dimf::iterateMembers( params, ValueReaderMaker(valueReaders) );
+        iterateMembers( params, ValueReaderMaker(valueReaders) );
         const auto nErasedItems = valueReaders.erase( "xIntervalWidth" );
         assert( nErasedItems == 1 );
         return valueReaders;
@@ -105,7 +86,7 @@ namespace {
     class ParamParser
     {
     public:
-        ParamParser( dimf::OptimizationParams & params )
+        ParamParser( BatchOptimizationParams & params )
             : valueReaders(makeValueReaders(params))
         {
         }
@@ -117,7 +98,28 @@ namespace {
             if ( varName.empty() )
                 CU_THROW( "No variable name specified." );
             if ( valueReaders.count(varName) == 0 )
-                CU_THROW( "Unknown variable name '" + varName + "'." );
+            {
+                const auto message =
+                        "The variable '" + varName +
+                        "' is unknown.";
+                auto minDist = varName.size() / 2 + 1;
+                auto minDistName = std::string{};
+                for ( const auto & x : valueReaders )
+                {
+                    const auto dist = cu::levenshteinDistance(
+                                varName, x.first );
+                    if ( dist < minDist )
+                    {
+                        minDist = dist;
+                        minDistName = x.first;
+                    }
+                }
+                // no appropriate match?
+                if ( minDistName.empty() )
+                    CU_THROW( message );
+                CU_THROW( message + " Did you mean '" +
+                          minDistName + "'?" );
+            }
             valueReaders.at(varName)( is );
         }
 
@@ -127,8 +129,56 @@ namespace {
 
 } // unnamed namespace
 
+
+static void loadSamplesFromFile( BatchOptimizationParams & params, std::string & fileName )
+{
+    params.samples = dimf::readSamplesFromFile( fileName );
+    params.xIntervalWidth = params.samples.size();
+}
+
+
+static void addProcessingStep( std::string & processing, std::istream & is )
+{
+    auto preprocessingStep = std::string{};
+    std::getline( is, preprocessingStep );
+    CU_ASSERT_THROW( is.eof(), "The stream should only contain one line, but contains more." );
+    processing.append( std::move(preprocessingStep) );
+    processing.push_back( '\n' );
+}
+
+static void addPreprocessingStep( BatchOptimizationParams & params, std::istream & is )
+{
+    addProcessingStep( params.preprocessing, is );
+}
+
+
+static void addInterprocessingStep( BatchOptimizationParams & params, std::istream & is )
+{
+    addProcessingStep( params.interprocessing, is );
+}
+
+
+static void clearProcessingSteps( std::string & processing, std::istream & is )
+{
+    is >> std::ws;
+    if ( !is.eof() )
+        CU_THROW( "This line has invalid content after the command." );
+    processing.clear();
+}
+
+static void clearPreprocessingSteps( BatchOptimizationParams & params, std::istream & is )
+{
+    clearProcessingSteps( params.preprocessing, is );
+}
+
+static void clearInterprocessingSteps( BatchOptimizationParams & params, std::istream & is )
+{
+    clearProcessingSteps( params.interprocessing, is );
+}
+
+
 static bool runLine(
-        dimf::OptimizationParams & params,
+        BatchOptimizationParams & params,
         const std::string & line,
         const ParamParser & paramParser
         )
@@ -162,6 +212,16 @@ static bool runLine(
         addInterprocessingStep( params, lineStream );
         return false;
     }
+    if ( command == "clear_preprocessing_steps" )
+    {
+        clearPreprocessingSteps( params, lineStream );
+        return false;
+    }
+    if ( command == "clear_interprocessing_steps" )
+    {
+        clearInterprocessingSteps( params, lineStream );
+        return false;
+    }
     if ( command == "" ) // line is empty.
     {
         assert( lineStream.eof() );
@@ -173,10 +233,10 @@ static bool runLine(
 }
 
 
-std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
+std::vector<BatchOptimizationParams> parseBatch( std::istream & is )
 {
-    auto result = std::vector<dimf::OptimizationParams>{};
-    auto params = dimf::OptimizationParams{};
+    auto result = std::vector<BatchOptimizationParams>{};
+    auto params = BatchOptimizationParams{};
     const auto paramParser = ParamParser{params};
     params.initializer = &dimf::getInitialApproximationByInterpolatingZeros;
     params.receiveBestFit = [](
@@ -191,7 +251,6 @@ std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
     };
     const auto lines = cu::extractByLine( is );
     for ( auto lineNumber = size_t{}; lineNumber < lines.size(); ++lineNumber )
-    {
         try
         {
             if ( runLine( params, lines[lineNumber], paramParser ) )
@@ -204,6 +263,5 @@ std::vector<dimf::OptimizationParams> parseBatch( std::istream & is )
                       ". The content of the line is '" +
                       lines[lineNumber] + "'." );
         }
-    }
     return result;
 }

@@ -5,11 +5,10 @@
 
 #pragma once
 
+#include "../decompose_imf_lib/optimization_task.h"
+
 #include <vector>
 #include <iosfwd>
-
-// forward declarations
-namespace dimf { struct OptimizationParams; }
 
 /*
 seti swarmSize 200
@@ -63,8 +62,22 @@ load_samples /home/ralph/Documents/c++/decompose_imf/data/effler_fp1_10sec17.asc
 new_task
  */
 
-std::vector<dimf::OptimizationParams> parseBatch( std::istream & is );
-inline std::vector<dimf::OptimizationParams> parseBatch( std::istream && is )
+struct BatchOptimizationParams : dimf::OptimizationParams
+{
+    size_t stepLimit{};
+};
+
+template <typename F>
+void iterateMembers( BatchOptimizationParams & params, F && f )
+{
+    iterateMembers(
+                static_cast<dimf::OptimizationParams&>(params),
+                std::forward<F>(f) );
+    f( params.stepLimit      , "stepLimit"       );
+}
+
+std::vector<BatchOptimizationParams> parseBatch( std::istream & is );
+inline std::vector<BatchOptimizationParams> parseBatch( std::istream && is )
 {
     return parseBatch( is );
 }
