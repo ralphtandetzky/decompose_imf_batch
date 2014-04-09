@@ -40,8 +40,9 @@ void MainWindow::parse()
     auto optParams = parseBatch(
                 std::istringstream(
                     m->ui.textEditor->toPlainText().toStdString()) );
-    for ( auto & optParam : optParams )
-        m->optParams.push_back( std::move(optParam) );
+    decltype(m->optParams)(
+                make_move_iterator(begin(optParams)),
+                make_move_iterator(end(optParams)) ).swap(m->optParams);
     m->updateState();
 }
 
