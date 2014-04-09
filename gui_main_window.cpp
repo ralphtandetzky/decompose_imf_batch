@@ -1,15 +1,19 @@
 #include "gui_main_window.h"
 #include "ui_gui_main_window.h"
 #include "parse_batch.h"
+
 #include "../decompose_imf_lib/optimization_task.h"
+
+#include "../qt_utils/exception_handling.h"
 #include "../qt_utils/invoke_in_thread.h"
 #include "../qt_utils/loop_thread.h"
-#include "../cpp_utils/std_make_unique.h"
-#include "../cpp_utils/exception_handling.h"
 
-#include <list>
+#include "../cpp_utils/locking.h"
+#include "../cpp_utils/exception_handling.h"
+#include "../cpp_utils/scope_guard.h"
+#include "../cpp_utils/std_make_unique.h"
+
 #include <QSettings>
-#include <iostream>
 
 static const char * tasksTextName = "tasksText";
 
@@ -17,18 +21,16 @@ namespace gui {
 
 struct MainWindow::Impl
 {
-    std::list<BatchOptimizationParams> optParams;
     Ui::MainWindow ui;
-//    dimf::OptimizationTask optTask;
     qu::LoopThread optimizationWorker;
 
-    void updateState()
+    struct SharedData
     {
-        ui.runNextOptimizationPushButton->setEnabled( !optParams.empty() );
-        ui.statusbar->showMessage(
-                    QString("%1 optimization runs left.")
-                    .arg(optParams.size()) );
-    }
+        bool cancelled{};
+        bool isRunning{};
+    };
+    cu::Monitor<SharedData> shared;
+
 };
 
 MainWindow::MainWindow(QWidget *parent)
@@ -38,39 +40,46 @@ MainWindow::MainWindow(QWidget *parent)
     m->ui.setupUi(this);
     m->ui.textEditor->setPlainText(
                 QSettings().value( tasksTextName ).toString() );
-    m->updateState();
 }
 
 MainWindow::~MainWindow()
 {
     CU_SWALLOW_ALL_EXCEPTIONS_FROM
     {
+        cancelRun();
         QSettings().setValue(
                     tasksTextName,
                     m->ui.textEditor->toPlainText() );
     };
 }
 
-void MainWindow::parse()
+void MainWindow::cancelRun()
 {
-    auto optParams = parseBatch(
-                std::istringstream(
-                    m->ui.textEditor->toPlainText().toStdString()) );
-    decltype(m->optParams)(
-                make_move_iterator(begin(optParams)),
-                make_move_iterator(end(optParams)) ).swap(m->optParams);
-    m->updateState();
+    m->shared( []( Impl::SharedData & shared )
+    {
+        shared.cancelled = true;
+    });
 }
 
-void MainWindow::runNextOptimization()
+void MainWindow::runBatch()
 {
-    if ( m->optParams.empty() )
-        return;
-
-    const auto optParams = m->optParams;
-    qu::invokeInThread( &m->optimizationWorker,
-                        [this,optParams]() mutable
-    {
+    const auto optParams = parseBatch( std::istringstream(
+        m->ui.textEditor->toPlainText().toStdString()) );
+    qu::invokeInThread( &m->optimizationWorker, [=]()
+    { QU_HANDLE_ALL_EXCEPTIONS_FROM {
+        qu    ::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(true); } );
+        CU_SCOPE_EXIT {
+            qu::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(false); } );
+        };
+        m->shared( [this]( Impl::SharedData & shared )
+        {
+            shared.cancelled = false;
+            shared.isRunning = true;
+        });
+        CU_SCOPE_EXIT {
+            m->shared( [this]( Impl::SharedData & shared )
+            { shared.isRunning = false; });
+        };
         auto i = size_t{};
         for ( auto optParam : optParams )
         {
@@ -87,11 +96,31 @@ void MainWindow::runNextOptimization()
             optParam.howToContinue =
                     [this,stepLimit]( size_t nIter )
             {
-                if ( nIter >= stepLimit )
+                const auto isCancelled = m->shared(
+                    []( Impl::SharedData & shared )
+                {
+                    return shared.cancelled;
+                });
+                if ( isCancelled || nIter >= stepLimit )
                     return dimf::ContinueOption::Cancel;
                 return dimf::ContinueOption::Continue;
             };
             dimf::runOptimization(optParam);
+            const auto isCancelled = m->shared(
+                []( Impl::SharedData & shared )
+            {
+                return shared.cancelled;
+            });
+            if ( isCancelled )
+            {
+                qu::invokeInGuiThread( [this]()
+                {
+                    m->ui.statusbar->showMessage(
+                        QString("Optimization run was cancelled.")
+                        , 5000 );
+                } );
+                return;
+            }
         }
         qu::invokeInGuiThread( [this]()
         {
@@ -99,7 +128,7 @@ void MainWindow::runNextOptimization()
                 QString("All optimization runs finished successfully.")
                 , 5000 );
         } );
-    } );
+    }; } );
 }
 
 } // namespace gui

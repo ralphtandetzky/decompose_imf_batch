@@ -18,8 +18,8 @@ public:
     ~MainWindow();
     
 private slots:
-    void parse();
-    void runNextOptimization();
+    void cancelRun();
+    void runBatch();
 
 private:
     struct Impl;

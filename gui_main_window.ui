@@ -34,16 +34,19 @@
        </spacer>
       </item>
       <item>
-       <widget class="QPushButton" name="runNextOptimizationPushButton">
+       <widget class="QPushButton" name="cancelRunButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="text">
-         <string>Run Next Optimization</string>
+         <string>Cancel</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="parsePushButton">
+       <widget class="QPushButton" name="runBatchButton">
         <property name="text">
-         <string>Parse</string>
+         <string>Run</string>
         </property>
        </widget>
       </item>
@@ -66,34 +69,34 @@
  <resources/>
  <connections>
   <connection>
-   <sender>parsePushButton</sender>
+   <sender>runBatchButton</sender>
    <signal>clicked()</signal>
    <receiver>gui::MainWindow</receiver>
-   <slot>parse()</slot>
+   <slot>runBatch()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>532</x>
-     <y>414</y>
+     <x>526</x>
+     <y>425</y>
     </hint>
     <hint type="destinationlabel">
-     <x>535</x>
-     <y>402</y>
+     <x>527</x>
+     <y>405</y>
     </hint>
    </hints>
   </connection>
   <connection>
-   <sender>runNextOptimizationPushButton</sender>
+   <sender>cancelRunButton</sender>
    <signal>clicked()</signal>
    <receiver>gui::MainWindow</receiver>
-   <slot>runNextOptimization()</slot>
+   <slot>cancelRun()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>375</x>
-     <y>416</y>
+     <x>431</x>
+     <y>418</y>
     </hint>
     <hint type="destinationlabel">
-     <x>383</x>
-     <y>402</y>
+     <x>434</x>
+     <y>401</y>
     </hint>
    </hints>
   </connection>
@@ -101,5 +104,7 @@
  <slots>
   <slot>parse()</slot>
   <slot>runNextOptimization()</slot>
+  <slot>runBatch()</slot>
+  <slot>cancelRun()</slot>
  </slots>
 </ui>
