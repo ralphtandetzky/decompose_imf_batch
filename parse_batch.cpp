@@ -146,6 +146,37 @@ static void addProcessingStep( std::string & processing, std::istream & is )
     processing.push_back( '\n' );
 }
 
+static void addImfOptimization( BatchOptimizationParams & params, std::istream & is )
+{
+    const auto throwOnFailure = [&is]( std::string msg )
+    {
+        if ( !is )
+        {
+            try
+            {
+                is.exceptions( std::istream::failbit | std::istream::badbit );
+            }
+            catch (...)
+            {
+                CU_THROW( msg );
+            }
+            assert( !"This line should not be reached." );
+            CU_THROW( msg );
+        }
+    };
+    size_t nImf = 0;
+    is >> nImf;
+    throwOnFailure( "Failed to read the number of the IMF." );
+    size_t nSteps = 0;
+    is >> nSteps;
+    throwOnFailure( "Failed to read the number of optimization steps"
+                    " for IMF with number " + std::to_string(nImf) + "." );
+    is >> std::ws;
+    if ( !is.eof() )
+        CU_THROW( "This line has invalid content after the command." );
+    params.imfOptimizations.push_back( std::make_pair(nImf,nSteps) );
+}
+
 static void addPreprocessingStep( BatchOptimizationParams & params, std::istream & is )
 {
     addProcessingStep( params.preprocessing, is );
@@ -200,6 +231,11 @@ static bool runLine(
         auto fileName = std::string{};
         lineStream >> fileName;
         loadSamplesFromFile( params, fileName );
+        return false;
+    }
+    if ( command == "add_imf_optimization" )
+    {
+        addImfOptimization( params, lineStream );
         return false;
     }
     if ( command == "add_preprocessing_step" )

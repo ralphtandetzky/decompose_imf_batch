@@ -22,7 +22,9 @@ set initTauUnits 64
 set nodeDevUnits 0.5
 set sigmaDevUnits 8
 set tauDevUnits 8
-set stepLimit 100000
+add_imf_optimization 0 10000
+add_imf_optimization 1 20000
+add_imf_optimization 2 30000
 add_preprocessing_step low_pass 2
 add_preprocessing_step clip 512 768
 add_preprocessing_step mul 0.02
@@ -65,7 +67,7 @@ new_task
 
 struct BatchOptimizationParams : dimf::OptimizationParams
 {
-    size_t stepLimit{};
+    std::vector<std::pair<size_t,size_t> > imfOptimizations;
 };
 
 template <typename F>
@@ -74,7 +76,7 @@ void iterateMembers( BatchOptimizationParams & params, F && f )
     iterateMembers(
                 static_cast<dimf::OptimizationParams&>(params),
                 std::forward<F>(f) );
-    f( params.stepLimit      , "stepLimit"       );
+    f( params.imfOptimizations, "imfOptimizations"       );
 }
 
 std::vector<BatchOptimizationParams> parseBatch( std::istream & is );

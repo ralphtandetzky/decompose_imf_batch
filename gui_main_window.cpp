@@ -97,18 +97,27 @@ void MainWindow::runBatch()
                             .arg(i)
                             .arg(n) );
             } );
-            const auto stepLimit = optParam.stepLimit;
+            const auto imfOptimizations = optParam.imfOptimizations;
             optParam.howToContinue =
-                    [this,stepLimit]( size_t nIter )
+                    [this,imfOptimizations]( size_t nIter )
             {
                 const auto isCancelled = m->shared(
                     []( Impl::SharedData & shared )
                 {
                     return shared.cancelled;
                 });
-                if ( isCancelled || nIter >= stepLimit )
-                    return dimf::ContinueOption::Cancel;
-                return dimf::ContinueOption::Continue;
+                if ( isCancelled )
+                    return ~size_t{0};
+                using ImfOptType = decltype(*begin(imfOptimizations));
+                const auto it = std::lower_bound(
+                        begin(imfOptimizations),
+                        end(imfOptimizations),
+                        nIter,
+                        []( ImfOptType lhs, size_t nIter )
+                        { return lhs.second < nIter; } );
+                if ( it == end(imfOptimizations) )
+                    return ~size_t{0};
+                return it->first;
             };
             dimf::runOptimization(optParam);
             const auto isCancelled = m->shared(
