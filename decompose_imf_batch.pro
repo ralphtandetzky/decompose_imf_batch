@@ -25,3 +25,15 @@ LIBS += \
 	-L../cpp_utils -lcpp_utils \
 	-L/usr/lib/ -L/usr/local/lib/ -lopencv_core -lopencv_imgproc -lopencv_highgui \
 
+
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/../decompose_imf_lib/release/ -ldecompose_imf_lib
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/../decompose_imf_lib/debug/ -ldecompose_imf_lib
+else:symbian: LIBS += -ldecompose_imf_lib
+else:unix: LIBS += -L$$OUT_PWD/../decompose_imf_lib/ -ldecompose_imf_lib
+
+INCLUDEPATH += $$PWD/../decompose_imf_lib
+DEPENDPATH += $$PWD/../decompose_imf_lib
+
+win32:CONFIG(release, debug|release): PRE_TARGETDEPS += $$OUT_PWD/../decompose_imf_lib/release/decompose_imf_lib.lib
+else:win32:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$OUT_PWD/../decompose_imf_lib/debug/decompose_imf_lib.lib
+else:unix:!symbian: PRE_TARGETDEPS += $$OUT_PWD/../decompose_imf_lib/libdecompose_imf_lib.a
