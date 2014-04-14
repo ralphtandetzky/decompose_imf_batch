@@ -15,9 +15,23 @@
 
 #include <QSettings>
 
+#include <iostream>
+
 static const char * tasksTextName = "tasksText";
 
 namespace gui {
+
+static void printImfs( const std::vector<std::vector<double> > & imfs )
+{
+    auto i = size_t(0);
+    for ( const auto & imf : imfs )
+    {
+        std::cout << "IMF " << (i++) << ": ";
+        std::copy( begin(imf), end(imf),
+                   std::ostream_iterator<double>(std::cout," ") );
+        std::cout << std::endl;
+    }
+}
 
 struct MainWindow::Impl
 {
@@ -97,9 +111,16 @@ void MainWindow::runBatch()
                             .arg(i)
                             .arg(n) );
             } );
-            const auto imfOptimizations = optParam.imfOptimizations;
+            auto imfIndexes = std::vector<size_t>{};
+            auto imfPartSums = std::vector<size_t>{};
+            auto totalImfOptSteps = size_t{0};
+            for ( const auto & imfOptimization : optParam.imfOptimizations )
+            {
+                imfIndexes.push_back( imfOptimization.first );
+                imfPartSums.push_back( totalImfOptSteps += imfOptimization.second );
+            }
             optParam.howToContinue =
-                    [this,imfOptimizations]( size_t nIter )
+                    [this,imfIndexes,imfPartSums]( size_t nIter )
             {
                 const auto isCancelled = m->shared(
                     []( Impl::SharedData & shared )
@@ -108,18 +129,16 @@ void MainWindow::runBatch()
                 });
                 if ( isCancelled )
                     return ~size_t{0};
-                using ImfOptType = decltype(*begin(imfOptimizations));
                 const auto it = std::lower_bound(
-                        begin(imfOptimizations),
-                        end(imfOptimizations),
-                        nIter,
-                        []( ImfOptType lhs, size_t nIter )
-                        { return lhs.second < nIter; } );
-                if ( it == end(imfOptimizations) )
+                        begin(imfPartSums),
+                        end(imfPartSums),
+                        nIter );
+                if ( it == end(imfPartSums) )
                     return ~size_t{0};
-                return it->first;
+                return imfIndexes.at( it - begin(imfPartSums) );
             };
-            dimf::runOptimization(optParam);
+            const auto imfs = dimf::runOptimization(optParam);
+            printImfs( imfs );
             const auto isCancelled = m->shared(
                 []( Impl::SharedData & shared )
             {
