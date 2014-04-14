@@ -11,17 +11,18 @@
 #include <iosfwd>
 
 /*
-seti swarmSize 200
-setf angleDevDegs 120
-setf amplitudeDev 0.5
-setf crossOverProb 1
-setf diffWeight 0.6
-seti nParams 7
-setf initSigmaUnits 64
-setf initTauUnits 64
-setf nodeDevUnits 0.5
-setf sigmaDevUnits 8
-setf tauDevUnits 8
+set swarmSize 200
+set angleDevDegs 120
+set amplitudeDev 0.5
+set crossOverProb 1
+set diffWeight 0.6
+set nParams 7
+set initSigmaUnits 64
+set initTauUnits 64
+set nodeDevUnits 0.5
+set sigmaDevUnits 8
+set tauDevUnits 8
+set stepLimit 100000
 add_preprocessing_step low_pass 2
 add_preprocessing_step clip 512 768
 add_preprocessing_step mul 0.02
