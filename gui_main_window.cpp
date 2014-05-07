@@ -77,15 +77,21 @@ void MainWindow::cancelRun()
 
 void MainWindow::runBatch()
 {
+    // parse script, produce optimization parameters.
     const auto optParams = parseBatch( std::istringstream(
         m->ui.textEditor->toPlainText().toStdString()) );
+
+    // check if an optimization is already running. Throw, if so.
     m->shared( [this]( Impl::SharedData & shared )
     {
         if ( shared.isRunning )
             CU_THROW( "Batch processing is already in progress." );
     });
+
+    // start optimization in worker thread.
     qu::invokeInThread( &m->optimizationWorker, [=]()
     { QU_HANDLE_ALL_EXCEPTIONS_FROM {
+        // set cancelled flag and running flag.
         m->shared( [this]( Impl::SharedData & shared )
         {
             shared.cancelled = false;
@@ -95,15 +101,20 @@ void MainWindow::runBatch()
             m->shared( [this]( Impl::SharedData & shared )
             { shared.isRunning = false; });
         };
+
+        // set gui push buttons' enabled state
         qu    ::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(true); } );
         CU_SCOPE_EXIT {
             qu::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(false); } );
         };
+
+        // run script in loop.
         auto i = size_t{};
         for ( auto optParam : optParams )
         {
             ++i;
             const auto n = optParams.size();
+            // Notify user about progress.
             qu::invokeInGuiThread( [this,i,n]()
             {
                 m->ui.statusbar->showMessage(
@@ -111,7 +122,11 @@ void MainWindow::runBatch()
                             .arg(i)
                             .arg(n) );
             } );
+            // contains the indexes of the imfs that shall be optimized
+            // in order.
             auto imfIndexes = std::vector<size_t>{};
+            // contains the step numbers when the index of the imf
+            // to be optimized shall change.
             auto imfPartSums = std::vector<size_t>{};
             auto totalImfOptSteps = size_t{0};
             for ( const auto & imfOptimization : optParam.imfOptimizations )
