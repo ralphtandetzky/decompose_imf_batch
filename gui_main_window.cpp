@@ -5,11 +5,13 @@
 #include "../decompose_imf_lib/optimization_task.h"
 
 #include "../qt_utils/exception_handling.h"
+#include "../qt_utils/gui_progress_manager.h"
 #include "../qt_utils/invoke_in_thread.h"
 #include "../qt_utils/loop_thread.h"
 
-#include "../cpp_utils/locking.h"
 #include "../cpp_utils/exception_handling.h"
+#include "../cpp_utils/locking.h"
+#include "../cpp_utils/progress_interface.h"
 #include "../cpp_utils/scope_guard.h"
 #include "../cpp_utils/std_make_unique.h"
 
@@ -51,7 +53,11 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow{parent}
     , m{ std::make_unique<Impl>() }
 {
+    auto progressManager = std::make_unique<qu::ProgressWidgetContainer>();
+    qu::setGlobalProgressManager( &progressManager->getProgressManagerInterface() );
     m->ui.setupUi(this);
+    m->ui.statusbar->addWidget( progressManager.get() );
+    progressManager.release();
     m->ui.textEditor->setPlainText(
                 QSettings().value( tasksTextName ).toString() );
 }
@@ -110,11 +116,13 @@ void MainWindow::runBatch()
 
         // run script in loop.
         auto i = size_t{};
+        const auto progress = qu::createProgress( "Batch Run" );
         for ( auto optParam : optParams )
         {
-            ++i;
-            const auto n = optParams.size();
             // Notify user about progress.
+            const auto n = optParams.size();
+            progress->setProgress( static_cast<double>(i)/n );
+            ++i;
             qu::invokeInGuiThread( [this,i,n]()
             {
                 m->ui.statusbar->showMessage(
@@ -135,14 +143,14 @@ void MainWindow::runBatch()
                 imfPartSums.push_back( totalImfOptSteps += imfOptimization.second );
             }
             optParam.howToContinue =
-                    [this,imfIndexes,imfPartSums]( size_t nIter )
+                    [this,imfIndexes,imfPartSums,&progress]( size_t nIter )
             {
                 const auto isCancelled = m->shared(
                     []( Impl::SharedData & shared )
                 {
                     return shared.cancelled;
                 });
-                if ( isCancelled )
+                if ( isCancelled || progress->shallAbort() )
                     return ~size_t{0};
                 const auto it = std::lower_bound(
                         begin(imfPartSums),
@@ -159,7 +167,7 @@ void MainWindow::runBatch()
             {
                 return shared.cancelled;
             });
-            if ( isCancelled )
+            if ( isCancelled || progress->shallAbort() )
             {
                 qu::invokeInGuiThread( [this]()
                 {
