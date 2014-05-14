@@ -56,7 +56,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto progressManager = std::make_unique<qu::ProgressWidgetContainer>();
     qu::setGlobalProgressManager( &progressManager->getProgressManagerInterface() );
     m->ui.setupUi(this);
-    m->ui.statusbar->addWidget( progressManager.get() );
+    m->ui.statusbar->addPermanentWidget( progressManager.get() );
     progressManager.release();
     m->ui.textEditor->setPlainText(
                 QSettings().value( tasksTextName ).toString() );
