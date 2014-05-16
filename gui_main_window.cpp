@@ -108,12 +108,6 @@ void MainWindow::runBatch()
             { shared.isRunning = false; });
         };
 
-        // set gui push buttons' enabled state
-        qu    ::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(true); } );
-        CU_SCOPE_EXIT {
-            qu::invokeInGuiThread( [this](){ m->ui.cancelRunButton->setEnabled(false); } );
-        };
-
         // run script in loop.
         auto i = size_t{};
         const auto progress = qu::createProgress( "Batch Run" );

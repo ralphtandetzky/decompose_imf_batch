@@ -34,16 +34,6 @@
        </spacer>
       </item>
       <item>
-       <widget class="QPushButton" name="cancelRunButton">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="text">
-         <string>Cancel</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <widget class="QPushButton" name="runBatchButton">
         <property name="text">
          <string>Run</string>
@@ -82,28 +72,12 @@
    <slot>runBatch()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>526</x>
-     <y>425</y>
+     <x>569</x>
+     <y>420</y>
     </hint>
     <hint type="destinationlabel">
      <x>527</x>
      <y>405</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>cancelRunButton</sender>
-   <signal>clicked()</signal>
-   <receiver>gui::MainWindow</receiver>
-   <slot>cancelRun()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>431</x>
-     <y>418</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>434</x>
-     <y>401</y>
     </hint>
    </hints>
   </connection>
