@@ -28,23 +28,70 @@ namespace {
         template <typename  T>
         void operator()( T & x, const char * varName ) const
         {
-            Impl<T,std::is_arithmetic<T>::value >()( x, varName, valueReaders );
+            try
+            {
+                Impl<T,std::is_arithmetic<T>::value >()( x, varName, valueReaders );
+            }
+            catch (...)
+            {
+                CU_THROW( std::string("The variable name '") + varName +
+                          "' could not be inserted into the list of "
+                          "valid variable names." );
+            }
         }
 
     private:
         template <typename T, bool IsArithmetic> struct Impl;
         template <typename T> struct Impl<T,false>
         {
-            void operator()( T &, const char *, ValueReadersType & ) const
+            void operator()( T & x, const char * varName
+                             , ValueReadersType & valueReaders) const
             {
-                // NOOP //
+                const auto varNameStr = std::string(varName);
+                if ( varNameStr == "initializer" )
+                {
+                    using InitializerType = std::function<
+                        std::vector<std::complex<double> >(
+                            const std::vector<double> &)>;
+                    CU_ASSERT_THROW( typeid(x) == typeid(InitializerType),
+                                     "Internal error: Type of '" +
+                                     varNameStr + "' is invalid." );
+                    auto & initializer = reinterpret_cast<InitializerType &>(x);
+                    const auto success = valueReaders.insert(
+                        std::make_pair(varName,
+                        [&initializer](std::istream & is)
+                    {
+                        auto value = std::string();
+                        is >> value;
+                        if ( is.fail() || is.bad() )
+                            CU_THROW( "The variable value could not be read." );
+                        is >> std::ws;
+                        if ( !is.eof() )
+                            CU_THROW( "I could successfully parse the variable "
+                                      "name and the value, but I don't know "
+                                      "what to do with the rest of the line." );
+                        if ( value == "zero" )
+                            initializer = []( const std::vector<double> & f )
+                                { return std::vector<std::complex<double>>(f.size()+1); };
+                        else if ( value == "interpolate_zeros" )
+                            initializer =
+                                &dimf::getInitialApproximationByInterpolatingZeros;
+                        else if ( value == "fourier_component" )
+                            initializer =
+                                &dimf::getInitialApproximationByFourierComponent;
+                        else
+                            CU_THROW( "Invalid value '" + value + "'." );
+                    }) ).second;
+                    CU_ASSERT_THROW( success,
+                                     "The variable name already exists." );
+
+                }
             }
         };
         template <typename T> struct Impl<T,true>
         {
             void operator()( T & x, const char * varName
                              , ValueReadersType & valueReaders ) const
-            try
             {
                 const auto success = valueReaders.insert(
                     std::make_pair(varName,
@@ -63,12 +110,6 @@ namespace {
                 }) ).second;
                 CU_ASSERT_THROW( success,
                                  "The variable name already exists." );
-            }
-            catch (...)
-            {
-                CU_THROW( std::string("The variable name '") + varName +
-                          "' could not be inserted into the list of "
-                          "valid variable names." );
             }
         };
         ValueReadersType & valueReaders;
@@ -294,7 +335,7 @@ std::vector<BatchOptimizationParams> parseBatch( std::istream & is )
         }
         catch (...)
         {
-            CU_THROW( "Could evaluate line " +
+            CU_THROW( "Could not evaluate line " +
                       std::to_string(lineNumber+1) +
                       ". The content of the line is '" +
                       lines[lineNumber] + "'." );

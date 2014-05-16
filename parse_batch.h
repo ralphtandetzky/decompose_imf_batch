@@ -12,7 +12,7 @@
 
 /*
 set swarmSize 200
-set angleDevDegs 120
+set angleDevDegs 70
 set amplitudeDev 0.5
 set crossOverProb 1
 set diffWeight 0.6
@@ -22,16 +22,12 @@ set initTauUnits 64
 set nodeDevUnits 0.5
 set sigmaDevUnits 8
 set tauDevUnits 8
+set freqSwingFactor 1
+set initializer fourier_component
 add_imf_optimization 0 100000
 add_imf_optimization 1 100000
-add_imf_optimization 0 100000
 add_imf_optimization 2 100000
-add_imf_optimization 1 100000
-add_imf_optimization 0 100000
 add_imf_optimization 3 100000
-add_imf_optimization 2 100000
-add_imf_optimization 1 100000
-add_imf_optimization 0 100000
 add_preprocessing_step low_pass 2
 add_preprocessing_step clip 512 768
 add_preprocessing_step mul 0.02
