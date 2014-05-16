@@ -121,8 +121,6 @@ void MainWindow::runBatch()
         {
             // Notify user about progress.
             const auto n = optParams.size();
-            progress->setProgress( static_cast<double>(i)/n );
-            ++i;
             qu::invokeInGuiThread( [this,i,n]()
             {
                 m->ui.statusbar->showMessage(
@@ -143,8 +141,10 @@ void MainWindow::runBatch()
                 imfPartSums.push_back( totalImfOptSteps += imfOptimization.second );
             }
             optParam.howToContinue =
-                    [this,imfIndexes,imfPartSums,&progress]( size_t nIter )
+                    [this,i,n,imfIndexes,imfPartSums,&progress]( size_t nIter )
             {
+                progress->setProgress(
+                    (i+static_cast<double>(nIter)/imfPartSums.back())/n );
                 const auto isCancelled = m->shared(
                     []( Impl::SharedData & shared )
                 {
@@ -177,7 +177,8 @@ void MainWindow::runBatch()
                 } );
                 return;
             }
-        }
+            ++i;
+        } // for loop
         qu::invokeInGuiThread( [this]()
         {
             m->ui.statusbar->showMessage(
