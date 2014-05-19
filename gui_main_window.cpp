@@ -23,15 +23,27 @@ static const char * tasksTextName = "tasksText";
 
 namespace gui {
 
+static void printSamples( const std::vector<double> & samples )
+{
+    std::copy( begin(samples), end(samples),
+               std::ostream_iterator<double>(std::cout, " ") );
+    std::cout << std::endl;
+}
+
+static void printPreprocessedSamples(
+        const dimf::OptimizationParams & params )
+{
+    std::cout << "Preprocessed samples: ";
+    printSamples( getPreprocessedSamples(params) );
+}
+
 static void printImfs( const std::vector<std::vector<double> > & imfs )
 {
     auto i = size_t(0);
     for ( const auto & imf : imfs )
     {
         std::cout << "IMF " << (i++) << ": ";
-        std::copy( begin(imf), end(imf),
-                   std::ostream_iterator<double>(std::cout," ") );
-        std::cout << std::endl;
+        printSamples( imf );
     }
 }
 
@@ -155,6 +167,7 @@ void MainWindow::runBatch()
                 return imfIndexes.at( it - begin(imfPartSums) );
             };
             const auto imfs = dimf::runOptimization(optParam);
+            printPreprocessedSamples(optParam);
             printImfs( imfs );
             const auto isCancelled = m->shared(
                 []( Impl::SharedData & shared )
