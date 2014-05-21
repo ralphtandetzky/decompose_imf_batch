@@ -11,6 +11,7 @@
 
 #include "../cpp_utils/exception_handling.h"
 #include "../cpp_utils/locking.h"
+#include "../cpp_utils/parallel_executor.h"
 #include "../cpp_utils/progress.h"
 #include "../cpp_utils/progress_interface.h"
 #include "../cpp_utils/scope_guard.h"
@@ -133,6 +134,8 @@ void MainWindow::Impl::runBatchStep(
             return ~size_t{0};
         return imfIndexes.at( it - begin(imfPartSums) );
     };
+    if ( optParam.howToContinue(0) == ~size_t{0} )
+        return;
     const auto imfs = dimf::runOptimization(optParam);
     printPreprocessedSamples(optParam);
     printImfs( imfs );
@@ -169,13 +172,30 @@ void MainWindow::runBatch()
         // run script in loop.
         const auto progress = qu::createProgress( "Batch Run" );
         const auto nOptParams = optParams.size();
+        // parProgress must be declared before executor. This ensures, that
+        // all tasks are completed before the destructor of parProgress is
+        // called. parProgress must not be destroyed before the tasks finish
+        // since the tasks access parProgress. This is the reason parProgress
+        // is made a unique_ptr, so it can be initialized after executor
+        // and destroyed after executor.
+        std::unique_ptr<cu::ParallelProgress> parProgress;
+        std::vector<std::future<void> > tasks;
+        cu::ParallelExecutor executor;
+        parProgress = std::make_unique<cu::ParallelProgress>(
+                    *progress, nOptParams, executor.getNWorkers() );
+        // Queue up the tasks.
         for ( size_t i = 0; i < nOptParams; ++i )
         {
-            cu::PartialProgress partialProgress(
-                        *progress,
-                        double( i )/nOptParams,
-                        double(i+1)/nOptParams );
-            m->runBatchStep( optParams[i], &partialProgress );
+            const auto & optParam = optParams[i];
+            tasks.push_back( executor.addTask( [=,&parProgress](){
+                m->runBatchStep( optParam,
+                                 &parProgress->getTaskProgressInterface( i ) );
+            }) );
+        }
+        // wait for the tasks to finish.
+        for ( auto & task : tasks )
+        {
+            task.get();
             const auto isCancelled = m->shared(
                 []( Impl::SharedData & shared )
             {
