@@ -25,27 +25,30 @@ static const char * tasksTextName = "tasksText";
 
 namespace gui {
 
-static void printSamples( const std::vector<double> & samples )
+static void printSamples( const std::vector<double> & samples,
+                          std::ostream & os )
 {
     std::copy( begin(samples), end(samples),
-               std::ostream_iterator<double>(std::cout, " ") );
-    std::cout << std::endl;
+               std::ostream_iterator<double>(os, " ") );
+    os << std::endl;
 }
 
 static void printPreprocessedSamples(
-        const dimf::OptimizationParams & params )
+        const dimf::OptimizationParams & params,
+        std::ostream & os )
 {
-    std::cout << "Preprocessed samples: ";
-    printSamples( getPreprocessedSamples(params) );
+    os << "Preprocessed samples: ";
+    printSamples( getPreprocessedSamples(params), os );
 }
 
-static void printImfs( const std::vector<std::vector<double> > & imfs )
+static void printImfs( const std::vector<std::vector<double> > & imfs,
+                       std::ostream & os )
 {
     auto i = size_t(0);
     for ( const auto & imf : imfs )
     {
-        std::cout << "IMF " << (i++) << ": ";
-        printSamples( imf );
+        os << "IMF " << (i++) << ": ";
+        printSamples( imf, os );
     }
 }
 
@@ -53,7 +56,8 @@ struct MainWindow::Impl
 {
     void runBatchStep(
             BatchOptimizationParams optParam,
-            cu::ProgressInterface * progress );
+            cu::ProgressInterface * progress,
+            std::ostream & os );
 
     Ui::MainWindow ui;
 
@@ -101,7 +105,8 @@ void MainWindow::cancelRun()
 
 void MainWindow::Impl::runBatchStep(
         BatchOptimizationParams optParam,
-        cu::ProgressInterface * progress )
+        cu::ProgressInterface * progress,
+        std::ostream & os )
 {
     // contains the indexes of the imfs that shall be optimized
     // in order.
@@ -136,9 +141,9 @@ void MainWindow::Impl::runBatchStep(
     };
     if ( optParam.howToContinue(0) == ~size_t{0} )
         return;
-    const auto imfs = dimf::runOptimization(optParam);
-    printPreprocessedSamples(optParam);
-    printImfs( imfs );
+    const auto imfs = dimf::runOptimization( optParam, os);
+    printPreprocessedSamples(optParam, os);
+    printImfs( imfs, os );
 }
 
 
@@ -180,27 +185,42 @@ void MainWindow::runBatch()
         // and destroyed after executor.
         std::unique_ptr<cu::ParallelProgress> parProgress;
         std::vector<std::future<void> > tasks;
+        std::vector<std::stringstream> sss(nOptParams);
         cu::ParallelExecutor executor;
         parProgress = std::make_unique<cu::ParallelProgress>(
                     *progress, nOptParams, executor.getNWorkers() );
         // Queue up the tasks.
         for ( size_t i = 0; i < nOptParams; ++i )
         {
-            const auto & optParam = optParams[i];
-            tasks.push_back( executor.addTask( [=,&parProgress](){
+            auto optParam = optParams[i];
+            auto & ss = sss[i];
+            optParam.receiveBestFit = [&ss](
+                    const std::vector<double> & //bestParams
+                    , double cost
+                    , size_t //nSamples
+                    , size_t nIter
+                    , const std::vector<double> & //f
+                    )
+            {
+                ss << nIter << ' ' << cost << std::endl;
+            };
+
+            tasks.push_back( executor.addTask( [=,&parProgress, &ss](){
                 m->runBatchStep( optParam,
-                                 &parProgress->getTaskProgressInterface( i ) );
+                                 &parProgress->getTaskProgressInterface( i ),
+                                 ss );
             }) );
         }
         // wait for the tasks to finish.
-        for ( auto & task : tasks )
+        for ( size_t i = 0; i != tasks.size(); ++i )
         {
-            task.get();
+            tasks[i].get();
             const auto isCancelled = m->shared(
                 []( Impl::SharedData & shared )
             {
                 return shared.cancelled;
             });
+            std::cout << sss[i].str();
             if ( isCancelled || progress->shallAbort() )
             {
                 qu::invokeInGuiThread( [this]()

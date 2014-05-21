@@ -8,7 +8,6 @@
 
 #include <cassert>
 #include <functional>
-#include <iostream>
 #include <map>
 
 
@@ -310,22 +309,13 @@ static bool runLine(
 }
 
 
-std::vector<BatchOptimizationParams> parseBatch( std::istream & is )
+std::vector<BatchOptimizationParams> parseBatch(
+        std::istream & is )
 {
     auto result = std::vector<BatchOptimizationParams>{};
     auto params = BatchOptimizationParams{};
     const auto paramParser = ParamParser{params};
     params.initializer = &dimf::getInitialApproximationByInterpolatingZeros;
-    params.receiveBestFit = [](
-            const std::vector<double> & //bestParams
-            , double cost
-            , size_t //nSamples
-            , size_t nIter
-            , const std::vector<double> & //f
-            )
-    {
-        std::cout << nIter << ' ' << cost << std::endl;
-    };
     const auto lines = cu::extractByLine( is );
     for ( auto lineNumber = size_t{}; lineNumber < lines.size(); ++lineNumber )
         try
