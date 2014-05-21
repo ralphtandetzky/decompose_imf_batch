@@ -11,6 +11,7 @@
 
 #include "../cpp_utils/exception_handling.h"
 #include "../cpp_utils/locking.h"
+#include "../cpp_utils/progress.h"
 #include "../cpp_utils/progress_interface.h"
 #include "../cpp_utils/scope_guard.h"
 #include "../cpp_utils/std_make_unique.h"
@@ -49,8 +50,11 @@ static void printImfs( const std::vector<std::vector<double> > & imfs )
 
 struct MainWindow::Impl
 {
+    void runBatchStep(
+            BatchOptimizationParams optParam,
+            cu::ProgressInterface * progress );
+
     Ui::MainWindow ui;
-    qu::LoopThread optimizationWorker;
 
     struct SharedData
     {
@@ -58,7 +62,7 @@ struct MainWindow::Impl
         bool isRunning{};
     };
     cu::Monitor<SharedData> shared;
-
+    qu::LoopThread optimizationWorker;
 };
 
 MainWindow::MainWindow(QWidget *parent)
@@ -93,6 +97,48 @@ void MainWindow::cancelRun()
     });
 }
 
+
+void MainWindow::Impl::runBatchStep(
+        BatchOptimizationParams optParam,
+        cu::ProgressInterface * progress )
+{
+    // contains the indexes of the imfs that shall be optimized
+    // in order.
+    auto imfIndexes = std::vector<size_t>{};
+    // contains the step numbers when the index of the imf
+    // to be optimized shall change.
+    auto imfPartSums = std::vector<size_t>{};
+    auto totalImfOptSteps = size_t{0};
+    for ( const auto & imfOptimization : optParam.imfOptimizations )
+    {
+        imfIndexes.push_back( imfOptimization.first );
+        imfPartSums.push_back( totalImfOptSteps += imfOptimization.second );
+    }
+    optParam.howToContinue =
+            [this,imfIndexes,imfPartSums,&progress]( size_t nIter )
+    {
+        progress->setProgress( double(nIter)/imfPartSums.back() );
+        const auto isCancelled = shared(
+            []( SharedData & shared )
+        {
+            return shared.cancelled;
+        });
+        if ( isCancelled || progress->shallAbort() )
+            return ~size_t{0};
+        const auto it = std::upper_bound(
+                begin(imfPartSums),
+                end(imfPartSums),
+                nIter );
+        if ( it == end(imfPartSums) )
+            return ~size_t{0};
+        return imfIndexes.at( it - begin(imfPartSums) );
+    };
+    const auto imfs = dimf::runOptimization(optParam);
+    printPreprocessedSamples(optParam);
+    printImfs( imfs );
+}
+
+
 void MainWindow::runBatch()
 {
     // parse script, produce optimization parameters.
@@ -121,54 +167,15 @@ void MainWindow::runBatch()
         };
 
         // run script in loop.
-        auto i = size_t{};
         const auto progress = qu::createProgress( "Batch Run" );
-        for ( auto optParam : optParams )
+        const auto nOptParams = optParams.size();
+        for ( size_t i = 0; i < nOptParams; ++i )
         {
-            // Notify user about progress.
-            const auto n = optParams.size();
-            qu::invokeInGuiThread( [this,i,n]()
-            {
-                m->ui.statusbar->showMessage(
-                            QString("Optimization %1 of %2 is running ...")
-                            .arg(i)
-                            .arg(n) );
-            } );
-            // contains the indexes of the imfs that shall be optimized
-            // in order.
-            auto imfIndexes = std::vector<size_t>{};
-            // contains the step numbers when the index of the imf
-            // to be optimized shall change.
-            auto imfPartSums = std::vector<size_t>{};
-            auto totalImfOptSteps = size_t{0};
-            for ( const auto & imfOptimization : optParam.imfOptimizations )
-            {
-                imfIndexes.push_back( imfOptimization.first );
-                imfPartSums.push_back( totalImfOptSteps += imfOptimization.second );
-            }
-            optParam.howToContinue =
-                    [this,i,n,imfIndexes,imfPartSums,&progress]( size_t nIter )
-            {
-                progress->setProgress(
-                    (i+static_cast<double>(nIter)/imfPartSums.back())/n );
-                const auto isCancelled = m->shared(
-                    []( Impl::SharedData & shared )
-                {
-                    return shared.cancelled;
-                });
-                if ( isCancelled || progress->shallAbort() )
-                    return ~size_t{0};
-                const auto it = std::lower_bound(
-                        begin(imfPartSums),
-                        end(imfPartSums),
-                        nIter );
-                if ( it == end(imfPartSums) )
-                    return ~size_t{0};
-                return imfIndexes.at( it - begin(imfPartSums) );
-            };
-            const auto imfs = dimf::runOptimization(optParam);
-            printPreprocessedSamples(optParam);
-            printImfs( imfs );
+            cu::PartialProgress partialProgress(
+                        *progress,
+                        double( i )/nOptParams,
+                        double(i+1)/nOptParams );
+            m->runBatchStep( optParams[i], &partialProgress );
             const auto isCancelled = m->shared(
                 []( Impl::SharedData & shared )
             {
@@ -184,8 +191,7 @@ void MainWindow::runBatch()
                 } );
                 return;
             }
-            ++i;
-        } // for loop
+        }
         qu::invokeInGuiThread( [this]()
         {
             m->ui.statusbar->showMessage(
